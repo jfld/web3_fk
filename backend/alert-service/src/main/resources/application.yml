@@ -1,0 +1,234 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /api/v1
+
+spring:
+  application:
+    name: alert-service
+
+  # 数据源配置
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/web3_alert_db
+    username: web3_user
+    password: web3_password
+    type: com.alibaba.druid.pool.DruidDataSource
+    
+    # Druid连接池配置
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      filters: stat,wall,slf4j
+      connection-properties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=5000
+
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  # Redis配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 1  # 使用数据库1，避免与risk-engine冲突
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # Kafka配置
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: alert-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.web3.alert.dto"
+        spring.json.type.mapping: "alert:com.web3.alert.dto.AlertDto,risk-transaction:com.web3.alert.dto.RiskTransactionDto"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: 1
+      retries: 3
+    listener:
+      ack-mode: manual_immediate
+
+  # 邮件配置
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+  # 缓存配置
+  cache:
+    type: redis
+    redis:
+      time-to-live: 1800000  # 30分钟
+
+  # Security配置
+  security:
+    user:
+      name: admin
+      password: admin123
+      roles: ADMIN
+
+# 自定义告警配置
+alert:
+  # 告警级别配置
+  levels:
+    critical:
+      threshold: 0.95
+      max-frequency: 10  # 每分钟最多10次
+    high:
+      threshold: 0.8
+      max-frequency: 20
+    medium:
+      threshold: 0.5
+      max-frequency: 50
+    low:
+      threshold: 0.2
+      max-frequency: 100
+
+  # 通知渠道配置
+  channels:
+    email:
+      enabled: true
+      templates:
+        critical: "critical-alert-template"
+        high: "high-alert-template"
+        medium: "medium-alert-template"
+    
+    sms:
+      enabled: false
+      provider: aliyun
+      access-key-id: ${SMS_ACCESS_KEY:}
+      access-key-secret: ${SMS_ACCESS_SECRET:}
+      sign-name: "Web3风控"
+      template-code: "SMS_123456789"
+    
+    wechat:
+      enabled: false
+      corp-id: ${WECHAT_CORP_ID:}
+      corp-secret: ${WECHAT_CORP_SECRET:}
+      agent-id: ${WECHAT_AGENT_ID:}
+    
+    webhook:
+      enabled: true
+      urls:
+        - url: "http://localhost:3000/webhook/alerts"
+          timeout: 5000
+          retry-count: 3
+    
+    telegram:
+      enabled: false
+      bot-token: ${TELEGRAM_BOT_TOKEN:}
+      chat-id: ${TELEGRAM_CHAT_ID:}
+
+  # 告警抑制配置
+  suppression:
+    enabled: true
+    duplicate-window: 300  # 5分钟内相同告警去重
+    burst-threshold: 50    # 突发告警阈值
+    burst-window: 60       # 突发检测窗口（秒）
+
+  # 告警升级配置
+  escalation:
+    enabled: true
+    rules:
+      - level: critical
+        escalate-after: 300  # 5分钟后升级
+        escalate-to: ["email", "sms", "wechat"]
+      - level: high
+        escalate-after: 600  # 10分钟后升级
+        escalate-to: ["email", "wechat"]
+
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,kafka
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# 日志配置
+logging:
+  level:
+    com.web3.alert: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.mail: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/alert-service.log
+
+# API文档配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  packages-to-scan: com.web3.alert.controller
+
+# 定时任务配置
+spring.quartz:
+  job-store-type: jdbc
+  properties:
+    org:
+      quartz:
+        scheduler:
+          instanceName: AlertServiceScheduler
+          instanceId: AUTO
+        jobStore:
+          class: org.quartz.impl.jdbcjobstore.JobStoreTX
+          driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+          useProperties: false
+          misfireThreshold: 60000
+          tablePrefix: QRTZ_
+          clusterCheckinInterval: 5000
+        threadPool:
+          class: org.quartz.simpl.SimpleThreadPool
+          threadCount: 10
+          threadPriority: 5

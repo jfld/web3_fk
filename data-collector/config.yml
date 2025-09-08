@@ -1,0 +1,60 @@
+server:
+  port: 8082
+  mode: debug
+
+blockchain:
+  networks:
+    ethereum:
+      rpc_url: "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"
+      ws_url: "wss://mainnet.infura.io/ws/v3/YOUR_PROJECT_ID"
+      chain_id: 1
+      enabled: true
+    bsc:
+      rpc_url: "https://bsc-dataseed1.binance.org/"
+      ws_url: "wss://bsc-ws-node.nariox.org:443"
+      chain_id: 56
+      enabled: true
+    polygon:
+      rpc_url: "https://polygon-rpc.com/"
+      ws_url: "wss://polygon-rpc.com/"
+      chain_id: 137
+      enabled: false
+
+kafka:
+  brokers:
+    - "localhost:9092"
+  topics:
+    transactions: "blockchain-transactions"
+    blocks: "blockchain-blocks"
+    alerts: "risk-alerts"
+  producer:
+    batch_size: 100
+    batch_timeout: "1s"
+
+influxdb:
+  url: "http://localhost:8086"
+  token: "your-influxdb-token"
+  org: "web3org"
+  bucket: "web3bucket"
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+
+logging:
+  level: "info"
+  format: "json"
+
+metrics:
+  enabled: true
+  path: "/metrics"
+
+data_processing:
+  filter_rules:
+    min_value_wei: "1000000000000000000" # 1 ETH
+    exclude_contracts: []
+    include_addresses: []
+  batch_size: 50
+  workers: 10
